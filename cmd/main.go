@@ -1,8 +1,10 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"os"
+	"strings"
 
 	"github.com/turgayh/boom/internal/config"
 )
@@ -13,5 +15,13 @@ func main() {
 		slog.Error("Failed to load configuration", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("Configuration loaded", "database_url", cfg.DatabaseURL, "redis_url", cfg.RedisURL, "webhook_url", cfg.WebhookURL, "port", cfg.Port, "log_level", cfg.LogLevel)
+
+	// Structured logging
+	level := slog.LevelInfo
+	if strings.EqualFold(cfg.LogLevel, "debug") {
+		level = slog.LevelDebug
+	}
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
+
+	ctx := context.Background()
 }
