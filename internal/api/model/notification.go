@@ -45,9 +45,16 @@ type BatchCreateRequest struct {
 }
 
 type BatchCreateResponse struct {
-	BatchID       string   `json:"batch_id"`
-	Notifications []string `json:"notification_ids"`
-	Total         int      `json:"total"`
+	BatchID       string              `json:"batch_id"`
+	Notifications []string            `json:"notification_ids"`
+	Total         int                 `json:"total"`
+	Failed        []BatchFailedItem   `json:"failed,omitempty"`
+}
+
+type BatchFailedItem struct {
+	Index int    `json:"index"`
+	ID    string `json:"id"`
+	Error string `json:"error"`
 }
 
 func (r *BatchCreateRequest) ToNotifications(batchID uuid.UUID) []*domain.Notification {
