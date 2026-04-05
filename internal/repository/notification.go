@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 
 	"github.com/google/uuid"
@@ -24,8 +25,10 @@ func NewNotificationRepository(db *pgxpool.Pool, log *slog.Logger) NotificationR
 	return &postgresNotificationRepository{db: db, log: log}
 }
 
+var ErrDuplicateIdempotencyKey = fmt.Errorf("duplicate idempotency key")
+
 func (r *postgresNotificationRepository) Create(ctx context.Context, n *domain.Notification) error {
-	_, err := r.db.Exec(ctx, `
+	result, err := r.db.Exec(ctx, `
         INSERT INTO notifications
             (id, batch_id, priority, status, idempotency_key, recipient, channel, content, attempts)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
@@ -36,6 +39,9 @@ func (r *postgresNotificationRepository) Create(ctx context.Context, n *domain.N
 	if err != nil {
 		r.log.Error("failed to create notification", "error", err)
 		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrDuplicateIdempotencyKey
 	}
 	return nil
 }
