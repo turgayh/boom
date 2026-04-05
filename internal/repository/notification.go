@@ -50,10 +50,11 @@ func (r *postgresNotificationRepository) GetByID(ctx context.Context, id uuid.UU
 	var n domain.Notification
 	err := r.db.QueryRow(ctx, `
         SELECT id, batch_id, priority, status, idempotency_key,
-               recipient, channel, content, attempts
+               recipient, channel, content, attempts, created_at, updated_at
         FROM notifications WHERE id = $1`, id).
 		Scan(&n.ID, &n.BatchID, &n.Priority, &n.Status,
-			&n.IdempotencyKey, &n.Recipient, &n.Channel, &n.Content, &n.Attempts)
+			&n.IdempotencyKey, &n.Recipient, &n.Channel, &n.Content, &n.Attempts,
+			&n.CreatedAt, &n.UpdatedAt)
 	if err != nil {
 		r.log.Error("failed to get notification by id", "error", err)
 		return nil, err
