@@ -39,3 +39,23 @@ func (r *CreateNotificationResponse) FromNotification(n *domain.Notification) *C
 		ID: n.ID.String(),
 	}
 }
+
+type BatchCreateRequest struct {
+	Notifications []CreateNotificationRequest `json:"notifications" validate:"required,min=1,max=1000"`
+}
+
+type BatchCreateResponse struct {
+	BatchID       string   `json:"batch_id"`
+	Notifications []string `json:"notification_ids"`
+	Total         int      `json:"total"`
+}
+
+func (r *BatchCreateRequest) ToNotifications(batchID uuid.UUID) []*domain.Notification {
+	notifications := make([]*domain.Notification, len(r.Notifications))
+	for i, n := range r.Notifications {
+		notif := n.ToNotification()
+		notif.BatchID = &batchID
+		notifications[i] = notif
+	}
+	return notifications
+}
