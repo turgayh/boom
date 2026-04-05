@@ -37,7 +37,7 @@ func (h *Handler) CreateNotification(c *gin.Context) {
 		return
 	}
 
-	if err := h.publisher.Publish(c.Request.Context(), "notifications", n); err != nil {
+	if err := h.publisher.Publish(c.Request.Context(), n); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "queue error"})
 		return
 	}
