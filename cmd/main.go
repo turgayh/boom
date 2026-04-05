@@ -49,7 +49,8 @@ func main() {
 	slog.Info("RabbitMQ connected")
 
 	notificationRepository := repository.NewNotificationRepository(pool, logger)
-	publisher := queue.NewPublisher(ch, logger)
+	publisher, err := queue.NewPublisher(ch, logger)
+	must(err, "failed to initialize publisher")
 	handler := api.NewHandler(notificationRepository, publisher)
 
 	r := gin.Default()
