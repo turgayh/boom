@@ -133,6 +133,25 @@ func (h *Handler) GetBatchNotifications(c *gin.Context) {
 	})
 }
 
+func (h *Handler) CancelNotification(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid notification id"})
+		return
+	}
+
+	if err := h.repo.Cancel(c.Request.Context(), id); err != nil {
+		if errors.Is(err, repository.ErrNotCancellable) {
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "cancelled"})
+}
+
 func (h *Handler) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

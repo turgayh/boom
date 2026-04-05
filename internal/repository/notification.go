@@ -27,6 +27,7 @@ type NotificationRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Notification, error)
 	GetByBatchID(ctx context.Context, batchID uuid.UUID) ([]*domain.Notification, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.Status, providerMsgID *string) error
+	Cancel(ctx context.Context, id uuid.UUID) error
 }
 
 type postgresNotificationRepository struct {
@@ -38,7 +39,10 @@ func NewNotificationRepository(db *pgxpool.Pool, log *slog.Logger) NotificationR
 	return &postgresNotificationRepository{db: db, log: log}
 }
 
-var ErrDuplicateIdempotencyKey = fmt.Errorf("duplicate idempotency key")
+var (
+	ErrDuplicateIdempotencyKey = fmt.Errorf("duplicate idempotency key")
+	ErrNotCancellable          = fmt.Errorf("only pending notifications can be cancelled")
+)
 
 func (r *postgresNotificationRepository) Create(ctx context.Context, n *domain.Notification) error {
 	result, err := r.db.Exec(ctx, `
@@ -140,3 +144,21 @@ func (r *postgresNotificationRepository) UpdateStatus(ctx context.Context, id uu
 	}
 	return nil
 }
+
+func (r *postgresNotificationRepository) Cancel(ctx context.Context, id uuid.UUID) error {
+	result, err := r.db.Exec(ctx, `
+        UPDATE notifications
+        SET status = $2, updated_at = NOW()
+        WHERE id = $1 AND status = 'pending'`,
+		id, domain.StatusCancelled,
+	)
+	if err != nil {
+		r.log.Error("failed to cancel notification", "error", err)
+		return err
+	}
+	if result.RowsAffected() == 0 {
+		return ErrNotCancellable
+	}
+	return nil
+}
+

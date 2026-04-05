@@ -80,6 +80,7 @@ func main() {
 	v1.POST("/notifications/batch", handler.CreateBatchNotification)
 	v1.GET("/notifications/:id", handler.GetNotification)
 	v1.GET("/notifications/batch/:batchId", handler.GetBatchNotifications)
+	v1.PATCH("/notifications/:id/cancel", handler.CancelNotification)
 	v1.GET("/health", handler.Health)
 	must(r.Run(":"+cfg.Port), "http server failed")
 }
