@@ -26,5 +26,17 @@ services:
       timeout: 5s
       retries: 5
 
+  boom
+    image: turgayh/boom:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/notifications?sslmode=disable
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - LOG_LEVEL=info
+    depends_on:
+      - postgres
+      - rabbitmq
+    restart: always
 volumes:
   pgdata:
