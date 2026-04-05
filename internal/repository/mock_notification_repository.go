@@ -9,7 +9,9 @@ import (
 
 type MockNotificationRepository struct {
 	CreateFn       func(ctx context.Context, n *domain.Notification) error
+	CreateBatchFn  func(ctx context.Context, notifications []*domain.Notification) (*BatchResult, error)
 	GetByIDFn      func(ctx context.Context, id uuid.UUID) (*domain.Notification, error)
+	GetByBatchIDFn func(ctx context.Context, batchID uuid.UUID) ([]*domain.Notification, error)
 	UpdateStatusFn func(ctx context.Context, id uuid.UUID, status domain.Status, providerMsgID *string) error
 }
 
@@ -17,8 +19,16 @@ func (m *MockNotificationRepository) Create(ctx context.Context, n *domain.Notif
 	return m.CreateFn(ctx, n)
 }
 
+func (m *MockNotificationRepository) CreateBatch(ctx context.Context, notifications []*domain.Notification) (*BatchResult, error) {
+	return m.CreateBatchFn(ctx, notifications)
+}
+
 func (m *MockNotificationRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Notification, error) {
 	return m.GetByIDFn(ctx, id)
+}
+
+func (m *MockNotificationRepository) GetByBatchID(ctx context.Context, batchID uuid.UUID) ([]*domain.Notification, error) {
+	return m.GetByBatchIDFn(ctx, batchID)
 }
 
 func (m *MockNotificationRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status domain.Status, providerMsgID *string) error {
