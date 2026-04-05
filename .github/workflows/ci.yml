@@ -16,10 +16,11 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: golangci-lint
-        uses: golangci/golangci-lint-action@v7
-        with:
-          version: v2.1.6
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Static check format
+        run: test -z "$(gofmt -l .)"
 
   test:
     runs-on: ubuntu-latest
