@@ -45,10 +45,10 @@ type BatchCreateRequest struct {
 }
 
 type BatchCreateResponse struct {
-	BatchID       string              `json:"batch_id"`
-	Notifications []string            `json:"notification_ids"`
-	Total         int                 `json:"total"`
-	Failed        []BatchFailedItem   `json:"failed,omitempty"`
+	BatchID       string            `json:"batch_id"`
+	Notifications []string          `json:"notification_ids"`
+	Total         int               `json:"total"`
+	Failed        []BatchFailedItem `json:"failed,omitempty"`
 }
 
 type BatchFailedItem struct {

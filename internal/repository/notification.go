@@ -161,4 +161,3 @@ func (r *postgresNotificationRepository) Cancel(ctx context.Context, id uuid.UUI
 	}
 	return nil
 }
-

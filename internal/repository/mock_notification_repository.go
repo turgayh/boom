@@ -39,4 +39,3 @@ func (m *MockNotificationRepository) UpdateStatus(ctx context.Context, id uuid.U
 func (m *MockNotificationRepository) Cancel(ctx context.Context, id uuid.UUID) error {
 	return m.CancelFn(ctx, id)
 }
-
