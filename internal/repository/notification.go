@@ -9,22 +9,22 @@ import (
 	"github.com/turgayh/boom/internal/domain"
 )
 
-type NotificationRepository struct {
-	db  *pgxpool.Pool
-	log *slog.Logger
-}
-
-type INotificationRepository interface {
+type NotificationRepository interface {
 	Create(ctx context.Context, n *domain.Notification) error
 	GetByID(ctx context.Context, id uuid.UUID) (*domain.Notification, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.Status, providerMsgID *string) error
 }
 
-func NewNotificationRepository(db *pgxpool.Pool, log *slog.Logger) INotificationRepository {
-	return &NotificationRepository{db: db, log: log}
+type postgresNotificationRepository struct {
+	db  *pgxpool.Pool
+	log *slog.Logger
 }
 
-func (r *NotificationRepository) Create(ctx context.Context, n *domain.Notification) error {
+func NewNotificationRepository(db *pgxpool.Pool, log *slog.Logger) NotificationRepository {
+	return &postgresNotificationRepository{db: db, log: log}
+}
+
+func (r *postgresNotificationRepository) Create(ctx context.Context, n *domain.Notification) error {
 	_, err := r.db.Exec(ctx, `
         INSERT INTO notifications
             (id, batch_id, priority, status, idempotency_key, recipient, channel, content, attempts)
@@ -40,7 +40,7 @@ func (r *NotificationRepository) Create(ctx context.Context, n *domain.Notificat
 	return nil
 }
 
-func (r *NotificationRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Notification, error) {
+func (r *postgresNotificationRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Notification, error) {
 	var n domain.Notification
 	err := r.db.QueryRow(ctx, `
         SELECT id, batch_id, priority, status, idempotency_key,
@@ -55,7 +55,7 @@ func (r *NotificationRepository) GetByID(ctx context.Context, id uuid.UUID) (*do
 	return &n, nil
 }
 
-func (r *NotificationRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status domain.Status, providerMsgID *string) error {
+func (r *postgresNotificationRepository) UpdateStatus(ctx context.Context, id uuid.UUID, status domain.Status, providerMsgID *string) error {
 	_, err := r.db.Exec(ctx, `
         UPDATE notifications
         SET status = $2, provider_msg_id = $3, attempts = attempts + 1, updated_at = NOW()
