@@ -11,6 +11,7 @@ type Config struct {
 	WebhookURL  string
 	Port        string
 	LogLevel    string
+	RabbitMQURL string
 }
 
 func Load() (*Config, error) {
@@ -20,12 +21,16 @@ func Load() (*Config, error) {
 		WebhookURL:  getEnv("WEBHOOK_URL", "https://webhook.site/test"),
 		Port:        getEnv("PORT", "8080"),
 		LogLevel:    getEnv("LOG_LEVEL", "info"),
+		RabbitMQURL: getEnv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/"),
 	}
 
 	if cfg.DatabaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is required")
 	}
 
+	if cfg.RabbitMQURL == "" {
+		return nil, fmt.Errorf("RABBITMQ_URL is required")
+	}
 	return cfg, nil
 }
 
