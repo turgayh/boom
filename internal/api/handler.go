@@ -62,6 +62,77 @@ func (h *Handler) GetNotification(c *gin.Context) {
 	c.JSON(http.StatusOK, n)
 }
 
+func (h *Handler) CreateBatchNotification(c *gin.Context) {
+	var req model.BatchCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if len(req.Notifications) == 0 || len(req.Notifications) > 1000 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "batch size must be between 1 and 1000"})
+		return
+	}
+
+	batchID := uuid.New()
+	notifications := req.ToNotifications(batchID)
+
+	result, err := h.repo.CreateBatch(c.Request.Context(), notifications)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ids := make([]string, 0, len(result.Succeeded))
+	for _, n := range result.Succeeded {
+		if err := h.publisher.Publish(c.Request.Context(), n); err != nil {
+			result.Failed = append(result.Failed, repository.BatchError{
+				Index: -1,
+				ID:    n.ID.String(),
+				Error: "queue error",
+			})
+			continue
+		}
+		ids = append(ids, n.ID.String())
+	}
+
+	var failed []model.BatchFailedItem
+	for _, f := range result.Failed {
+		failed = append(failed, model.BatchFailedItem{
+			Index: f.Index,
+			ID:    f.ID,
+			Error: f.Error,
+		})
+	}
+
+	c.JSON(http.StatusAccepted, model.BatchCreateResponse{
+		BatchID:       batchID.String(),
+		Notifications: ids,
+		Total:         len(ids),
+		Failed:        failed,
+	})
+}
+
+func (h *Handler) GetBatchNotifications(c *gin.Context) {
+	batchID, err := uuid.Parse(c.Param("batchId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid batch id"})
+		return
+	}
+
+	notifications, err := h.repo.GetByBatchID(c.Request.Context(), batchID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"batch_id":      batchID.String(),
+		"notifications": notifications,
+		"total":         len(notifications),
+	})
+}
+
 func (h *Handler) Health(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }

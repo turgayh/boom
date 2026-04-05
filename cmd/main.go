@@ -77,7 +77,9 @@ func main() {
 	r.Use(gin.Logger())
 	v1 := r.Group("v1")
 	v1.POST("/notifications", handler.CreateNotification)
+	v1.POST("/notifications/batch", handler.CreateBatchNotification)
 	v1.GET("/notifications/:id", handler.GetNotification)
+	v1.GET("/notifications/batch/:batchId", handler.GetBatchNotifications)
 	v1.GET("/health", handler.Health)
 	must(r.Run(":"+cfg.Port), "http server failed")
 }
