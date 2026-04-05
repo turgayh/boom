@@ -12,8 +12,10 @@ import (
 	amqp "github.com/rabbitmq/amqp091-go"
 	"github.com/turgayh/boom/internal/api"
 	"github.com/turgayh/boom/internal/config"
+	"github.com/turgayh/boom/internal/provider"
 	"github.com/turgayh/boom/internal/queue"
 	"github.com/turgayh/boom/internal/repository"
+	"github.com/turgayh/boom/internal/worker"
 )
 
 func main() {
@@ -53,6 +55,23 @@ func main() {
 	must(err, "failed to initialize publisher")
 	handler := api.NewHandler(notificationRepository, publisher)
 
+	workerCh, err := conn.Channel()
+	must(err, "failed to open worker channel")
+	defer workerCh.Close()
+
+	sender := provider.NewSender(cfg.WebhookURL)
+	w := worker.New(workerCh, notificationRepository, sender, logger)
+
+	workerCtx, workerCancel := context.WithCancel(ctx)
+	defer workerCancel()
+
+	go func() {
+		if err := w.Start(workerCtx); err != nil {
+			slog.Error("worker error", "error", err)
+		}
+	}()
+	slog.Info("worker started")
+
 	r := gin.Default()
 	r.Use(gin.Recovery())
 	r.Use(gin.Logger())
@@ -63,20 +82,28 @@ func main() {
 }
 
 func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	migration, err := os.ReadFile("migrations/001_init.up.sql")
-	if err != nil {
-		migration, err = os.ReadFile("/migrations/001_init.up.sql")
-		if err != nil {
-			return fmt.Errorf("read migration file: %w", err)
-		}
+	files := []string{
+		"migrations/001_init.up.sql",
+		"migrations/002_add_provider_msg_id.up.sql",
 	}
 
-	_, err = pool.Exec(ctx, string(migration))
-	if err != nil {
-		if strings.Contains(err.Error(), "already exists") {
-			return nil
+	for _, f := range files {
+		migration, err := os.ReadFile(f)
+		if err != nil {
+			// try absolute path for Docker
+			migration, err = os.ReadFile("/" + f)
+			if err != nil {
+				return fmt.Errorf("read migration file %s: %w", f, err)
+			}
 		}
-		return fmt.Errorf("execute migration: %w", err)
+
+		_, err = pool.Exec(ctx, string(migration))
+		if err != nil {
+			if strings.Contains(err.Error(), "already exists") {
+				continue
+			}
+			return fmt.Errorf("execute migration %s: %w", f, err)
+		}
 	}
 	return nil
 }
