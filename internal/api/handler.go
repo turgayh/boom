@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/turgayh/boom/internal/api/model"
 	"github.com/turgayh/boom/internal/queue"
 	"github.com/turgayh/boom/internal/repository"
@@ -43,6 +44,22 @@ func (h *Handler) CreateNotification(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusAccepted, model.CreateNotificationResponse{ID: n.ID.String()})
+}
+
+func (h *Handler) GetNotification(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid notification id"})
+		return
+	}
+
+	n, err := h.repo.GetByID(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "notification not found"})
+		return
+	}
+
+	c.JSON(http.StatusOK, n)
 }
 
 func (h *Handler) Health(c *gin.Context) {

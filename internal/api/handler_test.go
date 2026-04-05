@@ -21,6 +21,7 @@ func setupRouter(h *Handler) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.POST("/v1/notifications", h.CreateNotification)
+	r.GET("/v1/notifications/:id", h.GetNotification)
 	return r
 }
 
@@ -96,4 +97,42 @@ func TestCreateNotification_DuplicateIdempotencyKey(t *testing.T) {
 	err := json.Unmarshal(w.Body.Bytes(), &resp)
 	assert.NoError(t, err)
 	assert.Equal(t, "idempotency key already exists", resp["error"])
+}
+
+func TestGetNotification_Success(t *testing.T) {
+	notificationID := uuid.New()
+
+	mockRepo := &repository.MockNotificationRepository{
+		GetByIDFn: func(ctx context.Context, id uuid.UUID) (*domain.Notification, error) {
+			return &domain.Notification{
+				ID:        notificationID,
+				Priority:  domain.PriorityHigh,
+				Status:    domain.StatusDelivered,
+				Recipient: "+905551234567",
+				Channel:   "sms",
+				Content:   "Test message",
+			}, nil
+		},
+	}
+	mockPub := &queue.MockPublisher{
+		PublishFn: func(ctx context.Context, n *domain.Notification) error {
+			return nil
+		},
+	}
+
+	h := NewHandler(mockRepo, mockPub)
+	router := setupRouter(h)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest(http.MethodGet, "/v1/notifications/"+notificationID.String(), nil)
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var resp domain.Notification
+	err := json.Unmarshal(w.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+	assert.Equal(t, notificationID, resp.ID)
+	assert.Equal(t, domain.StatusDelivered, resp.Status)
+	assert.Equal(t, "sms", resp.Channel)
 }
