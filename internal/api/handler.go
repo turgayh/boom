@@ -3,6 +3,7 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -133,6 +134,45 @@ func (h *Handler) GetBatchNotifications(c *gin.Context) {
 	})
 }
 
+func (h *Handler) ListNotifications(c *gin.Context) {
+	page := 1
+	pageSize := 20
+	if v := c.Query("page"); v != "" {
+		fmt.Sscanf(v, "%d", &page)
+	}
+	if v := c.Query("page_size"); v != "" {
+		fmt.Sscanf(v, "%d", &pageSize)
+	}
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	filter := repository.ListFilter{
+		Status:   c.Query("status"),
+		Channel:  c.Query("channel"),
+		DateFrom: c.Query("date_from"),
+		DateTo:   c.Query("date_to"),
+		Page:     page,
+		PageSize: pageSize,
+	}
+
+	notifications, total, err := h.repo.List(c.Request.Context(), filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"notifications": notifications,
+		"total":         total,
+		"page":          page,
+		"page_size":     pageSize,
+	})
+}
+
 func (h *Handler) CancelNotification(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -150,6 +190,25 @@ func (h *Handler) CancelNotification(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "cancelled"})
+}
+
+func (h *Handler) Metrics(c *gin.Context) {
+	metrics, err := h.repo.Metrics(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	depths, err := h.publisher.QueueDepths()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"notifications": metrics,
+		"queues":        depths,
+	})
 }
 
 func (h *Handler) Health(c *gin.Context) {

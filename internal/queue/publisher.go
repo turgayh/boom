@@ -10,8 +10,14 @@ import (
 	"github.com/turgayh/boom/internal/domain"
 )
 
+type QueueDepth struct {
+	Queue    string `json:"queue"`
+	Messages int    `json:"messages"`
+}
+
 type Publisher interface {
 	Publish(ctx context.Context, notification *domain.Notification) error
+	QueueDepths() ([]QueueDepth, error)
 }
 
 const (
@@ -56,6 +62,21 @@ func (p *amqpPublisher) Publish(ctx context.Context, notification *domain.Notifi
 		ContentType: "application/json",
 		Body:        body,
 	})
+}
+
+func (p *amqpPublisher) QueueDepths() ([]QueueDepth, error) {
+	var depths []QueueDepth
+	for _, q := range []string{QueueHigh, QueueNormal, QueueLow} {
+		info, err := p.ch.QueueInspect(q)
+		if err != nil {
+			return nil, fmt.Errorf("inspect queue %s: %w", q, err)
+		}
+		depths = append(depths, QueueDepth{
+			Queue:    q,
+			Messages: info.Messages,
+		})
+	}
+	return depths, nil
 }
 
 func priorityToQueue(p domain.Priority) string {

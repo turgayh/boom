@@ -28,6 +28,23 @@ type NotificationRepository interface {
 	GetByBatchID(ctx context.Context, batchID uuid.UUID) ([]*domain.Notification, error)
 	UpdateStatus(ctx context.Context, id uuid.UUID, status domain.Status, providerMsgID *string) error
 	Cancel(ctx context.Context, id uuid.UUID) error
+	List(ctx context.Context, filter ListFilter) ([]*domain.Notification, int, error)
+	Metrics(ctx context.Context) (*NotificationMetrics, error)
+}
+
+type NotificationMetrics struct {
+	Total     int            `json:"total"`
+	ByStatus  map[string]int `json:"by_status"`
+	ByChannel map[string]int `json:"by_channel"`
+}
+
+type ListFilter struct {
+	Status   string
+	Channel  string
+	DateFrom string
+	DateTo   string
+	Page     int
+	PageSize int
 }
 
 type postgresNotificationRepository struct {
@@ -160,4 +177,108 @@ func (r *postgresNotificationRepository) Cancel(ctx context.Context, id uuid.UUI
 		return ErrNotCancellable
 	}
 	return nil
+}
+
+func (r *postgresNotificationRepository) List(ctx context.Context, filter ListFilter) ([]*domain.Notification, int, error) {
+	where := "WHERE 1=1"
+	args := []any{}
+	argIdx := 1
+
+	if filter.Status != "" {
+		where += fmt.Sprintf(" AND status = $%d", argIdx)
+		args = append(args, filter.Status)
+		argIdx++
+	}
+	if filter.Channel != "" {
+		where += fmt.Sprintf(" AND channel = $%d", argIdx)
+		args = append(args, filter.Channel)
+		argIdx++
+	}
+	if filter.DateFrom != "" {
+		where += fmt.Sprintf(" AND created_at >= $%d", argIdx)
+		args = append(args, filter.DateFrom)
+		argIdx++
+	}
+	if filter.DateTo != "" {
+		where += fmt.Sprintf(" AND created_at <= $%d", argIdx)
+		args = append(args, filter.DateTo)
+		argIdx++
+	}
+
+	var total int
+	countQuery := "SELECT COUNT(*) FROM notifications " + where
+	if err := r.db.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	offset := (filter.Page - 1) * filter.PageSize
+	query := fmt.Sprintf(`
+		SELECT id, batch_id, priority, status, idempotency_key,
+		       recipient, channel, content, attempts, created_at, updated_at
+		FROM notifications %s
+		ORDER BY created_at DESC
+		LIMIT $%d OFFSET $%d`, where, argIdx, argIdx+1)
+	args = append(args, filter.PageSize, offset)
+
+	rows, err := r.db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var notifications []*domain.Notification
+	for rows.Next() {
+		var n domain.Notification
+		if err := rows.Scan(&n.ID, &n.BatchID, &n.Priority, &n.Status,
+			&n.IdempotencyKey, &n.Recipient, &n.Channel, &n.Content, &n.Attempts,
+			&n.CreatedAt, &n.UpdatedAt); err != nil {
+			return nil, 0, err
+		}
+		notifications = append(notifications, &n)
+	}
+	return notifications, total, nil
+}
+
+func (r *postgresNotificationRepository) Metrics(ctx context.Context) (*NotificationMetrics, error) {
+	metrics := &NotificationMetrics{
+		ByStatus:  make(map[string]int),
+		ByChannel: make(map[string]int),
+	}
+
+	// total
+	if err := r.db.QueryRow(ctx, "SELECT COUNT(*) FROM notifications").Scan(&metrics.Total); err != nil {
+		return nil, err
+	}
+
+	// by status
+	rows, err := r.db.Query(ctx, "SELECT status, COUNT(*) FROM notifications GROUP BY status")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var status string
+		var count int
+		if err := rows.Scan(&status, &count); err != nil {
+			return nil, err
+		}
+		metrics.ByStatus[status] = count
+	}
+
+	// by channel
+	rows2, err := r.db.Query(ctx, "SELECT channel, COUNT(*) FROM notifications GROUP BY channel")
+	if err != nil {
+		return nil, err
+	}
+	defer rows2.Close()
+	for rows2.Next() {
+		var channel string
+		var count int
+		if err := rows2.Scan(&channel, &count); err != nil {
+			return nil, err
+		}
+		metrics.ByChannel[channel] = count
+	}
+
+	return metrics, nil
 }
