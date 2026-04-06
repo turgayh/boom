@@ -2,6 +2,8 @@ module github.com/turgayh/boom
 
 go 1.25.0
 
+toolchain go1.25.8
+
 require (
 	github.com/gin-gonic/gin v1.12.0
 	github.com/google/uuid v1.6.0

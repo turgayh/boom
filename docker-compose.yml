@@ -26,7 +26,8 @@ services:
       timeout: 5s
       retries: 5
 
-  boom
+  boom:
+    build: .
     image: turgayh/boom:latest
     ports:
       - "8080:8080"
@@ -34,6 +35,8 @@ services:
       - DATABASE_URL=postgres://postgres:postgres@postgres:5432/notifications?sslmode=disable
       - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
       - LOG_LEVEL=info
+      - PORT=8080
+      - WEBHOOK_URL=https://webhook.site/61ea592d-d890-4690-a8ac-93206bc00d23
     depends_on:
       - postgres
       - rabbitmq
